@@ -142,7 +142,7 @@ class CreateCustomer(graphene.Mutation):
             email=input.email,
             phone=input.phone or ""
         )
-
+        customer.save()
         return CreateCustomer(customer=customer, message="Customer created successfully.")
 
 
@@ -201,7 +201,7 @@ class CreateProduct(graphene.Mutation):
             price=input.price,
             stock=input.stock
         )
-
+        product.save() 
         return CreateProduct(product=product, message="Product created successfully.")
 
 
@@ -233,7 +233,7 @@ class CreateOrder(graphene.Mutation):
             order_date=input.order_date or timezone.now()
         )
         order.products.set(products)
-
+        order.save()  # ✅ Save before adding M2M
         return CreateOrder(order=order, message="Order created successfully.")
 
 
