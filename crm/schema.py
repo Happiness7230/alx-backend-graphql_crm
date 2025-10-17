@@ -4,8 +4,13 @@ from .models import Customer, Product, Order
 from django.db import transaction, IntegrityError
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
+from graphene_django.filter import DjangoFilterConnectionField
 from datetime import datetime
 from django.utils import timezone
+from graphene_django.filter import DjangoFilterConnectionField
+from graphene import relay
+from .filters import CustomerFilter, ProductFilter, OrderFilter
+from .types import CustomerType, ProductType, OrderType 
 import re
 
 # ----------------------------
@@ -336,7 +341,6 @@ class Mutation(graphene.ObjectType):
     create_product = CreateProduct.Field()
     create_order = CreateOrder.Field()
 
-
 class Query(graphene.ObjectType):
     customers = graphene.List(CustomerType)
     products = graphene.List(ProductType)
@@ -350,3 +354,29 @@ class Query(graphene.ObjectType):
 
     def resolve_orders(root, info):
         return Order.objects.all()
+class CustomerType(DjangoObjectType):
+    class Meta:
+        model = Customer
+        filter_fields = ['name', 'email']  # 👈 add filterable fields
+        interfaces = (relay.Node,)
+
+class ProductType(DjangoObjectType):
+    class Meta:
+        model = Product
+        filter_fields = ['name', 'price', 'stock']
+        interfaces = (relay.Node,)
+
+class OrderType(DjangoObjectType):
+    class Meta:
+        model = Order
+        filter_fields = ['customer__name', 'product__name', 'quantity']
+        interfaces = (relay.Node,)
+class Query(graphene.ObjectType):
+    customer = relay.Node.Field(CustomerType)
+    all_customers = DjangoFilterConnectionField(CustomerType)
+
+    product = relay.Node.Field(ProductType)
+    all_products = DjangoFilterConnectionField(ProductType)
+
+    order = relay.Node.Field(OrderType)
+    all_orders = DjangoFilterConnectionField(OrderType)
