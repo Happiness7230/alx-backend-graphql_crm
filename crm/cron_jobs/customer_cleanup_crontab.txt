@@ -1,0 +1,1 @@
+0 2 * * 0 / root@hp-HP-ProBook-640-G1:/home/hp/alx_backend_graphql_crm/crm/cron_jobs/clean_inactive_customers.sh
