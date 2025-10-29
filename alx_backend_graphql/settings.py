@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'django_filters',
     'crm',
     'django_crontab',
+    'django_celery_beat',
 ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

@@ -12,6 +12,7 @@ from graphene import relay
 from .filters import CustomerFilter, ProductFilter, OrderFilter
 from .types import CustomerType, ProductType, OrderType 
 import re
+from crm.models import Product
 
 # ----------------------------
 # DjangoObjectType Definitions
@@ -240,6 +241,32 @@ class CreateOrder(graphene.Mutation):
         order.products.set(products)
         order.save()  # ✅ Save before adding M2M
         return CreateOrder(order=order, message="Order created successfully.")
+
+# ============================
+# NEW MUTATION: UpdateLowStockProducts
+# ============================
+class UpdateLowStockProducts(graphene.Mutation):
+    success = graphene.Boolean()
+    message = graphene.String()
+    updated_products = graphene.List(ProductType)
+
+    @staticmethod
+    def mutate(root, info):
+        low_stock_products = Product.objects.filter(stock__lt=10)
+        updated = []
+
+        for product in low_stock_products:
+            product.stock += 10
+            product.save()
+            updated.append(product)
+
+        if updated:
+            msg = f"Updated {len(updated)} low-stock products (+10 each)."
+        else:
+            msg = "No low-stock products found."
+
+        return UpdateLowStockProducts(success=True, message=msg, updated_products=updated)
+
 
 
 # ============================
