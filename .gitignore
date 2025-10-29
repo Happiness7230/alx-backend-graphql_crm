@@ -1,0 +1,37 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Django files
+*.log
+*.pot
+*.pyc
+db.sqlite3
+*.mo
+
+celerybeat-schedule
+celerybeat.pid
+*.pid
+
+venv/
+ENV/
+env/
+.venv/
+pip-wheel-metadata/
+
+
+# Redis dump file
+dump.rdb
+
+# CRM report logs
+/tmp/crm_report_log.txt
+
+# Ignore migrations if desired (optional)
+# **/migrations/*.py
+# !**/migrations/__init__.py
