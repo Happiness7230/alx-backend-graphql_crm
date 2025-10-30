@@ -1,178 +1,86 @@
-🧾 CRM Automation & GraphQL Integration
-📖 Overview
+🧭 CRM Celery + GraphQL Automation Setup
 
-This project extends a Django-based CRM system with:
+This project integrates Django, GraphQL, Celery, and Celery Beat to automate CRM tasks like generating weekly reports, updating low-stock products, and monitoring app health.
 
-GraphQL API for querying and mutations
+⚡ Quick Setup
 
-Cron jobs (via django-crontab) for automated system checks and inventory updates
+If you just need to get everything running fast, follow these 5 steps 👇
 
-Celery + Celery Beat for scheduled background tasks
+# 1️⃣ Install Redis and dependencies
+sudo apt update && sudo apt install redis-server -y
+sudo systemctl enable redis-server --now
+redis-cli ping  # should return PONG
 
-Redis as a Celery message broker
+# 2️⃣ Run Django migrations
+python manage.py migrate
 
-Together, these features enable automation of:
+# 3️⃣ Start the Celery worker
+celery -A crm worker -l info
 
-Order reminders for recent orders
+# 4️⃣ Start Celery Beat scheduler
+celery -A crm beat -l info
 
-Heartbeat checks for CRM uptime
-
-Automatic stock restocking for low-inventory products
-
-Weekly CRM performance reporting (customers, orders, and revenue)
-
-🧩 Features Summary
-Feature	Description	Schedule
-Order Reminders	Logs pending orders from the past week	Daily @ 8:00 AM
-CRM Heartbeat	Logs “CRM is alive” every 5 minutes	Every 5 mins
-Low Stock Restock	Automatically restocks products with stock < 10	Every 12 hours
-Weekly CRM Report	Logs total customers, orders, and revenue	Every Monday @ 6:00 AM
-
-⚙️ 1. Installation
-Prerequisites
-
-Python 3.8+
-
-Redis server running locally
-
-Django project initialized
-
-Install Dependencies
-
-Activate your virtual environment, then install:
-
-pip install django gql requests celery django-celery-beat django-crontab redis
+# 5️⃣ Verify logs are generated
+cat /tmp/crm_report_log.txt
 
 
-Add to requirements.txt:
+✅ Example log output:
+
+2025-10-28 06:00:00 - Report: 152 customers, 348 orders, ₦2,560,000 revenue
+
+📦 Project Overview
+
+This CRM system uses:
+
+GraphQL for querying customers, orders, and products.
+
+Celery + Redis for asynchronous and scheduled tasks.
+
+Celery Beat for periodic automation (like weekly reporting).
+
+Django ORM for database management.
+
+🧰 Installation & Setup (Detailed)
+1. Clone the Repository
+git clone https://github.com/yourusername/alx_backend_graphql_crm.git
+cd alx_backend_graphql_crm
+
+2. Create Virtual Environment
+python3 -m venv venv
+source venv/bin/activate
+
+3. Install Dependencies
+
+Make sure your requirements.txt includes:
 
 django
-gql
-requests
-celery
+graphene-django
+django-filter
 django-celery-beat
-django-crontab
+celery
 redis
+django-crontab
 
-🧠 2. Project Configuration
-a. Add Installed Apps
 
-In crm/settings.py:
+Then install:
+
+pip install -r requirements.txt
+
+⚙️ 4. Configure Django & Celery
+crm/settings.py
+
+Ensure:
 
 INSTALLED_APPS = [
-    # Django defaults...
-    'django_crontab',
+    ...,
     'django_celery_beat',
+    'django_crontab',
     'crm',
 ]
 
-b. Default AutoField
-
-Prevent model warnings by adding:
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-c. Redis Configuration (for Celery)
 CELERY_BROKER_URL = 'redis://localhost:6379/0'
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
 
-🧾 3. GraphQL Integration
-GraphQL Endpoint
-
-Make sure your project has a running GraphQL endpoint at:
-
-http://localhost:8000/graphql
-
-
-This endpoint exposes queries and mutations used by cron jobs and Celery tasks.
-
-Sample Schema Additions (crm/schema.py)
-a. UpdateLowStockProducts Mutation
-import graphene
-from .models import Product
-
-class UpdateLowStockProducts(graphene.Mutation):
-    success = graphene.Boolean()
-    updated_products = graphene.List(graphene.String)
-
-    def mutate(self, info):
-        updated = []
-        low_stock = Product.objects.filter(stock__lt=10)
-        for product in low_stock:
-            product.stock += 10
-            product.save()
-            updated.append(f"{product.name} (new stock: {product.stock})")
-        return UpdateLowStockProducts(success=True, updated_products=updated)
-
-class Mutation(graphene.ObjectType):
-    update_low_stock_products = UpdateLowStockProducts.Field()
-
-🕒 4. Cron Jobs (via django-crontab)
-a. Setup
-
-Add to crm/settings.py:
-
-CRONJOBS = [
-    ('*/5 * * * *', 'crm.cron.log_crm_heartbeat'),
-    ('0 */12 * * *', 'crm.cron.update_low_stock'),
-]
-
-b. Cron Job Implementations (crm/cron.py)
-1. Heartbeat Job
-from datetime import datetime
-
-def log_crm_heartbeat():
-    timestamp = datetime.now().strftime('%d/%m/%Y-%H:%M:%S')
-    message = f"{timestamp} CRM is alive\n"
-    with open('/tmp/crm_heartbeat_log.txt', 'a') as log:
-        log.write(message)
-
-2. Update Low Stock Job
-from gql import gql, Client
-from gql.transport.requests import RequestsHTTPTransport
-
-def update_low_stock():
-    transport = RequestsHTTPTransport(url='http://localhost:8000/graphql', verify=True, retries=3)
-    client = Client(transport=transport, fetch_schema_from_transport=True)
-
-    mutation = gql('''
-        mutation {
-            updateLowStockProducts {
-                success
-                updatedProducts
-            }
-        }
-    ''')
-
-    result = client.execute(mutation)
-    updates = result["updateLowStockProducts"]["updatedProducts"]
-
-    from datetime import datetime
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-    with open('/tmp/low_stock_updates_log.txt', 'a') as f:
-        for product in updates:
-            f.write(f"{timestamp} - {product}\n")
-
-🧩 5. Celery + Celery Beat Setup
-a. Create crm/celery.py
-from __future__ import absolute_import, unicode_literals
-import os
-from celery import Celery
-from celery.schedules import crontab
-
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'crm.settings')
-
-app = Celery('crm')
-app.config_from_object('django.conf:settings', namespace='CELERY')
-app.autodiscover_tasks()
-
-b. Update crm/__init__.py
-from .celery import app as celery_app
-
-__all__ = ('celery_app',)
-
-c. Celery Beat Schedule (in crm/settings.py)
 from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE = {
@@ -182,7 +90,25 @@ CELERY_BEAT_SCHEDULE = {
     },
 }
 
-d. Weekly CRM Report Task (crm/tasks.py)
+crm/celery.py
+from __future__ import absolute_import
+import os
+from celery import Celery
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'crm.settings')
+
+app = Celery('crm')
+app.config_from_object('django.conf:settings', namespace='CELERY')
+app.autodiscover_tasks()
+
+crm/init.py
+from .celery import app as celery_app
+__all__ = ['celery_app']
+
+📊 5. Celery Task: generate_crm_report
+
+crm/tasks.py
+
 from celery import shared_task
 from gql import gql, Client
 from gql.transport.requests import RequestsHTTPTransport
@@ -190,113 +116,67 @@ from datetime import datetime
 
 @shared_task
 def generate_crm_report():
-    transport = RequestsHTTPTransport(url='http://localhost:8000/graphql', verify=True, retries=3)
+    transport = RequestsHTTPTransport(url='http://localhost:8000/graphql')
     client = Client(transport=transport, fetch_schema_from_transport=True)
 
-    query = gql('''
-        query {
-            totalCustomers
-            totalOrders
-            totalRevenue
-        }
-    ''')
+    query = gql("""
+    query {
+        customers { id }
+        orders { id totalAmount }
+    }
+    """)
 
-    result = client.execute(query)
-    customers = result['totalCustomers']
-    orders = result['totalOrders']
-    revenue = result['totalRevenue']
+    data = client.execute(query)
+    total_customers = len(data['customers'])
+    total_orders = len(data['orders'])
+    total_revenue = sum(o['totalAmount'] for o in data['orders'])
 
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open('/tmp/crm_report_log.txt', 'a') as log:
-        log.write(f"{timestamp} - Report: {customers} customers, {orders} orders, {revenue} revenue\n")
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open("/tmp/crm_report_log.txt", "a") as log:
+        log.write(f"{timestamp} - Report: {total_customers} customers, {total_orders} orders, ₦{total_revenue} revenue\n")
 
-    print("CRM weekly report generated!")
-
-🧰 6. Redis Setup
-
-Install and enable Redis:
-
-sudo apt install redis-server -y
+💾 6. Redis Setup
+sudo apt update && sudo apt install redis-server -y
 sudo systemctl start redis-server
 sudo systemctl enable redis-server
+redis-cli ping  # expect "PONG"
 
-
-Check status:
-
-redis-cli ping
-# Expected output: PONG
-
-🧾 7. Running the System
+🚀 7. Running the System
 Run Migrations
 python manage.py migrate
-
-Run Django Server
-python manage.py runserver
 
 Start Celery Worker
 celery -A crm worker -l info
 
-Start Celery Beat
+Start Celery Beat Scheduler
 celery -A crm beat -l info
 
-Register Cron Jobs
-python manage.py crontab add
-python manage.py crontab show
+📋 8. Verify Logs
 
-🧩 8. Verify Logs
-Task	Log File	Example Output
-CRM Heartbeat	/tmp/crm_heartbeat_log.txt	28/10/2025-12:30:00 CRM is alive
-Order Reminder	/tmp/order_reminders_log.txt	Order 1023 - customer@example.com
-Low Stock Update	/tmp/low_stock_updates_log.txt	2025-10-28 - Product A (new stock: 20)
-Weekly Report	/tmp/crm_report_log.txt	2025-10-27 - Report: 25 customers, 80 orders, ₦500,000 revenue
+Check that weekly reports are logged to:
 
-9. .gitignore Recommendations
+cat /tmp/crm_report_log.txt
 
-Create .gitignore in the project root:
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.log
-*.sqlite3
-.env
-venv/
-.env/
-*.egg-info/
+Example output:
 
-# Celery / Redis
-celerybeat-schedule
-celerybeat.pid
+2025-10-28 06:00:00 - Report: 152 customers, 348 orders, ₦2,560,000 revenue
 
-# System logs
-/tmp/*.txt
-*.pid
+🧪 9. Optional Commands
 
-# Django
-db.sqlite3
-/static/
-media/
+Stop all Celery tasks:
 
-✅ Summary
+pkill -f 'celery'
 
-This CRM system now:
 
-Integrates GraphQL queries and mutations
+Check Redis service:
 
-Automates tasks using django-crontab and Celery Beat
+sudo systemctl status redis-server
 
-Uses Redis as a distributed message broker
-
-Generates real-time and scheduled reports
-
-📍 Automation Timeline:
-
-Every 5 mins → Heartbeat check
-
-Every 12 hrs → Low stock restock
-
-Every day @ 8 AM → Order reminder
-
-Every Monday @ 6 AM → Weekly report
+🧠 10. Summary of Automation Jobs
+Task	Frequency	Tool	File
+Clean inactive customers	Weekly (Sunday 2 AM)	cron	clean_inactive_customers.sh
+Send order reminders	Daily (8 AM)	cron	send_order_reminders.py
+CRM heartbeat	Every 5 mins	django-crontab	crm/cron.py
+Update low stock	Every 12 hrs	django-crontab	crm/cron.py
+Generate weekly report	Weekly (Monday 6 AM)	Celery Beat	crm/tasks.py
