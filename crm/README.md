@@ -1,15 +1,14 @@
 🧭 CRM Celery + GraphQL Automation Setup
 
 This project integrates Django, GraphQL, Celery, and Celery Beat to automate CRM tasks like generating weekly reports, updating low-stock products, and monitoring app health.
-
-⚡ Quick Setup
-
 If you just need to get everything running fast, follow these 5 steps 👇
 
 # 1️⃣ Install Redis and dependencies
 sudo apt update && sudo apt install redis-server -y
 sudo systemctl enable redis-server --now
 redis-cli ping  # should return PONG
+pip install -r requirements.txt
+sudo apt install redis-server
 
 # 2️⃣ Run Django migrations
 python manage.py migrate
