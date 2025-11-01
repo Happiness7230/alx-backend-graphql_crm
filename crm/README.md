@@ -2,7 +2,6 @@
 
 This project integrates Django, GraphQL, Celery, and Celery Beat to automate CRM tasks like generating weekly reports, updating low-stock products, and monitoring app health.
 If you just need to get everything running fast, follow these 5 steps 👇
-
 # 1️⃣ Install Redis and dependencies
 sudo apt update && sudo apt install redis-server -y
 sudo systemctl enable redis-server --now
@@ -179,3 +178,11 @@ Send order reminders	Daily (8 AM)	cron	send_order_reminders.py
 CRM heartbeat	Every 5 mins	django-crontab	crm/cron.py
 Update low stock	Every 12 hrs	django-crontab	crm/cron.py
 Generate weekly report	Weekly (Monday 6 AM)	Celery Beat	crm/tasks.py
+
+Create crm/README.md with steps to:
+
+InstallRedis and dependencies.
+Run migrations (python manage.py migrate).
+Start Celery worker (celery -A crm worker -l info).
+Start Celery Beat (celery -A crm beat -l info).
+Verify logs in /tmp/crm_report_log.txt.
